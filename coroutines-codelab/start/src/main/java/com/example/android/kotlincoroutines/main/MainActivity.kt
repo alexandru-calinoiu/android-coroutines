@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.ViewModelProviders
 import androidx.lifecycle.observe
+import androidx.work.WorkManager
 import com.example.android.kotlincoroutines.R
 import com.google.android.material.snackbar.Snackbar
 
@@ -50,7 +51,7 @@ class MainActivity : AppCompatActivity() {
         val database = getDatabase(this)
         val repository = TitleRepository(getNetworkService(), database.titleDao)
         val viewModel = ViewModelProviders
-                .of(this, MainViewModel.FACTORY(repository))
+                .of(this, MainViewModel.FACTORY(repository, WorkManager.getInstance(this)))
                 .get(MainViewModel::class.java)
 
         // When rootLayout is clicked call onMainViewClicked in ViewModel

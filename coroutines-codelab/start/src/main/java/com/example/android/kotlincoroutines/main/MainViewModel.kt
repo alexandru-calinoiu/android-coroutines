@@ -20,8 +20,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkRequest
 import com.example.android.kotlincoroutines.util.BACKGROUND
 import com.example.android.kotlincoroutines.util.singleArgViewModelFactory
+import com.example.android.kotlincoroutines.util.twoArgViewModelFactory
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -34,7 +38,7 @@ import kotlinx.coroutines.launch
  *
  * @param repository the data source this ViewModel will fetch results from.
  */
-class MainViewModel(private val repository: TitleRepository) : ViewModel() {
+class MainViewModel(private val repository: TitleRepository, private val workManager: WorkManager) : ViewModel() {
 
     companion object {
         /**
@@ -42,7 +46,7 @@ class MainViewModel(private val repository: TitleRepository) : ViewModel() {
          *
          * @param arg the repository to pass to [MainViewModel]
          */
-        val FACTORY = singleArgViewModelFactory(::MainViewModel)
+        val FACTORY = twoArgViewModelFactory(::MainViewModel)
     }
 
     /**
@@ -123,7 +127,9 @@ class MainViewModel(private val repository: TitleRepository) : ViewModel() {
      * Refresh the title, showing a loading spinner while it refreshes and errors via snackbar.
      */
     private fun refreshTitle() {
-        launchDataLoad { repository.refreshTitle() }
+//        launchDataLoad { repository.refreshTitle() }
+        val refreshWorkRequest = OneTimeWorkRequestBuilder<RefreshMainDataWork>().build()
+        workManager.enqueue(refreshWorkRequest)
     }
 
     private fun launchDataLoad(block: suspend () -> Unit): Job {
