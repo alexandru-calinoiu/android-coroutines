@@ -50,4 +50,13 @@ class MainViewModelTest {
         coroutineScope.advanceTimeBy(1_000)
         Truth.assertThat(subject.taps.getValueForTest()).isEqualTo("1 taps")
     }
+
+    @Test
+    fun whenMainClicked_itWillRefreshTheTitle() {
+        subject.onMainViewClicked()
+        Truth.assertThat(subject.spinner.value).isTrue()
+        coroutineScope.advanceTimeBy(500)
+        Truth.assertThat(subject.spinner.value).isFalse()
+        coroutineScope.advanceTimeBy(500)
+    }
 }
