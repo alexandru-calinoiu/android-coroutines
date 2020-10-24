@@ -17,7 +17,10 @@
 package com.example.android.advancedcoroutines
 
 import androidx.lifecycle.*
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ConflatedBroadcastChannel
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
@@ -44,6 +47,7 @@ class PlantListViewModel internal constructor(
         get() = _snackbar
 
     private val _spinner = MutableLiveData<Boolean>(false)
+
     /**
      * Show a loading spinner if true
      */
@@ -66,13 +70,29 @@ class PlantListViewModel internal constructor(
         }
     }
 
-    val plantsUsingFlow: LiveData<List<Plant>> = plantRepository.plantsFlow.asLiveData()
+    private val growZoneChannel = ConflatedBroadcastChannel<GrowZone>()
+
+    @FlowPreview
+    val plantsUsingFlow: LiveData<List<Plant>> = growZoneChannel.asFlow()
+        .flatMapLatest { growZone ->
+            if (growZone == NoGrowZone) {
+                plantRepository.plantsFlow
+            } else {
+                plantRepository.getPlantsWithGrowZoneFlow(growZone)
+            }
+        }.asLiveData()
 
     init {
         // When creating a new ViewModel, clear the grow zone and perform any related udpates
         clearGrowZoneNumber()
 
-        launchDataLoad { plantRepository.tryUpdateRecentPlantsCache() }
+        loadDataFor(growZoneChannel) { growZone ->
+            if (growZone == NoGrowZone) {
+                plantRepository.tryUpdateRecentPlantsCache()
+            } else {
+                plantRepository.tryUpdateRecentPlantsForGrowZoneCache(growZone)
+            }
+        }
     }
 
     /**
@@ -82,10 +102,9 @@ class PlantListViewModel internal constructor(
      * updating the grow zone will automatically kickoff a network request.
      */
     fun setGrowZoneNumber(num: Int) {
-        growZone.value = GrowZone(num)
-
-        // initial code version, will move during flow rewrite
-        launchDataLoad { plantRepository.tryUpdateRecentPlantsCache() }
+        val newGrowZone = GrowZone(num)
+        growZone.value = newGrowZone
+        growZoneChannel.offer(newGrowZone)
     }
 
     /**
@@ -96,9 +115,7 @@ class PlantListViewModel internal constructor(
      */
     fun clearGrowZoneNumber() {
         growZone.value = NoGrowZone
-
-        // initial code version, will move during flow rewrite
-        launchDataLoad { plantRepository.tryUpdateRecentPlantsCache() }
+        growZoneChannel.offer(NoGrowZone)
     }
 
     /**
@@ -135,5 +152,17 @@ class PlantListViewModel internal constructor(
                 _spinner.value = false
             }
         }
+    }
+
+    private fun <T> loadDataFor(source: ConflatedBroadcastChannel<T>, block: suspend (T) -> Unit) {
+        source
+            .asFlow()
+            .mapLatest { value ->
+                _spinner.value = true
+                block(value)
+            }
+            .onCompletion { _spinner.value = false }
+            .catch { throwable -> _snackbar.value = throwable.message }
+            .launchIn(viewModelScope)
     }
 }
